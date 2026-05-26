@@ -126,10 +126,12 @@ main{padding:16px 16px 100px;flex:1}
 .punch-section-header span{font-size:12px;font-weight:500;color:var(--text-secondary)}
 .punch-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;transition:all var(--transition)}
 .punch-row.removing{opacity:0;transform:translateX(20px)}
-.punch-pair{display:flex;align-items:center;gap:5px;flex:1}
-.punch-pair label{font-size:10px;font-weight:700;color:var(--text-secondary);white-space:nowrap;min-width:32px;letter-spacing:.03em}
-.punch-pair input[type=time]{flex:1;padding:7px 8px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-size:13px;font-family:inherit;background:var(--input-bg);color:var(--text);min-width:0;width:100%;outline:none;transition:all var(--transition)}
-.punch-pair input[type=time]:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-subtle);background:var(--surface)}
+.punch-pair{display:flex;align-items:center;gap:4px;flex:1}
+.punch-pair label{font-size:10px;font-weight:700;color:var(--text-secondary);white-space:nowrap;min-width:28px;letter-spacing:.03em}
+.punch-hh,.punch-mm{width:44px;padding:7px 6px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-size:14px;font-family:inherit;background:var(--input-bg);color:var(--text);outline:none;transition:all var(--transition);text-align:center;min-width:0;appearance:textfield;-moz-appearance:textfield}
+.punch-hh::-webkit-inner-spin-button,.punch-mm::-webkit-inner-spin-button{display:none}
+.punch-hh:focus,.punch-mm:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-subtle);background:var(--surface)}
+.punch-sep{color:var(--text-secondary);font-weight:700;font-size:14px;user-select:none;flex-shrink:0}
 .punch-remove{background:none;border:none;color:var(--punch-remove-color);cursor:pointer;font-size:16px;padding:4px;border-radius:6px;transition:all var(--transition);line-height:1;flex-shrink:0}
 .punch-remove:hover{color:var(--danger);background:rgba(220,38,38,.08);transform:scale(1.1)}
 .btn-add-punch{background:none;border:1.5px dashed var(--border);border-radius:var(--radius-sm);padding:9px;width:100%;color:var(--primary);font-size:13px;font-weight:600;cursor:pointer;transition:all var(--transition);font-family:inherit;letter-spacing:.01em}
@@ -161,8 +163,8 @@ main{padding:16px 16px 100px;flex:1}
 @media(min-width:600px){
   .punch-row{padding:12px 14px}
   .punch-pair{gap:8px}
-  .punch-pair label{min-width:38px}
-  .punch-pair input[type=time]{padding:8px 10px;font-size:14px}
+  .punch-pair label{min-width:36px}
+  .punch-hh,.punch-mm{width:52px;padding:8px 6px;font-size:15px}
   main{padding:20px 24px 100px}
   .emp-card{padding:16px 18px;gap:14px}
   .stats-row{gap:14px}
@@ -529,14 +531,35 @@ function addPunchRow(index){
   row.innerHTML=`
     <div class="punch-pair">
       <label>IN-${index}</label>
-      <input type="time" class="punch-in" step="60">
+      <input type="text" class="punch-hh" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="HH" data-type="hh" data-side="in" autocomplete="off">
+      <span class="punch-sep">:</span>
+      <input type="text" class="punch-mm" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="MM" data-type="mm" data-side="in" autocomplete="off">
     </div>
     <div class="punch-pair">
       <label>OUT-${index}</label>
-      <input type="time" class="punch-out" step="60">
+      <input type="text" class="punch-hh" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="HH" data-type="hh" data-side="out" autocomplete="off">
+      <span class="punch-sep">:</span>
+      <input type="text" class="punch-mm" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="MM" data-type="mm" data-side="out" autocomplete="off">
     </div>
     <button class="punch-remove" data-action="remove-pair" title="Remove pair">&times;</button>
   `;
+  row.querySelectorAll('.punch-hh,.punch-mm').forEach(el=>{
+    el.addEventListener('input',function(){
+      this.value=this.value.replace(/\D/g,'').slice(0,2);
+    });
+    el.addEventListener('blur',function(){
+      const t=this.dataset.type;
+      const v=parseInt(this.value);
+      if(t==='hh'&&this.value.length&&!isNaN(v)){
+        if(v>23)this.value='23';
+        else if(this.value.length===1&&v<10)this.value='0'+v;
+      }
+      if(t==='mm'&&this.value.length&&!isNaN(v)){
+        if(v>59)this.value='59';
+        else if(this.value.length===1&&v<10)this.value='0'+v;
+      }
+    });
+  });
   const removeBtn=row.querySelector('.punch-remove');
   removeBtn.addEventListener('click',()=>removePunchRow(row));
   container.appendChild(row);
@@ -574,9 +597,14 @@ function getPunchData(){
   const rows=document.querySelectorAll('#punch-pairs .punch-row');
   const punches=[];
   rows.forEach(r=>{
-    const inVal=r.querySelector('.punch-in').value;
-    const outVal=r.querySelector('.punch-out').value;
-    if(inVal||outVal)punches.push({in:inVal,out:outVal});
+    const hhIn=r.querySelector('.punch-hh[data-side="in"]').value;
+    const mmIn=r.querySelector('.punch-mm[data-side="in"]').value;
+    const hhOut=r.querySelector('.punch-hh[data-side="out"]').value;
+    const mmOut=r.querySelector('.punch-mm[data-side="out"]').value;
+    if(!hhIn&&!mmIn&&!hhOut&&!mmOut)return;
+    const inVal=(hhIn||mmIn)?(hhIn||'00')+':'+(mmIn||'00'):'';
+    const outVal=(hhOut||mmOut)?(hhOut||'00')+':'+(mmOut||'00'):'';
+    punches.push({in:inVal,out:outVal});
   });
   return punches;
 }
@@ -587,8 +615,16 @@ function setPunchData(punches){
   const rows=document.querySelectorAll('#punch-pairs .punch-row');
   punches.forEach((p,i)=>{
     if(i>=rows.length)return;
-    rows[i].querySelector('.punch-in').value=p.in||'';
-    rows[i].querySelector('.punch-out').value=p.out||'';
+    if(p.in){
+      const parts=p.in.split(':');
+      if(parts[0])rows[i].querySelector('.punch-hh[data-side="in"]').value=parts[0];
+      if(parts[1])rows[i].querySelector('.punch-mm[data-side="in"]').value=parts[1];
+    }
+    if(p.out){
+      const parts=p.out.split(':');
+      if(parts[0])rows[i].querySelector('.punch-hh[data-side="out"]').value=parts[0];
+      if(parts[1])rows[i].querySelector('.punch-mm[data-side="out"]').value=parts[1];
+    }
   });
   updatePairCount();
   const addBtn=document.getElementById('btn-add-pair');
@@ -653,7 +689,7 @@ function displayResult(total,req,diff){
 // === CLEAR ===
 function clearPunches(){
   document.querySelectorAll('#punch-pairs .punch-row').forEach(row=>{
-    row.querySelectorAll('.punch-in,.punch-out').forEach(el=>el.value='');
+    row.querySelectorAll('.punch-hh,.punch-mm').forEach(el=>el.value='');
   });
   clearResult();
   showToast('Times cleared');
