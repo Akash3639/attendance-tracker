@@ -153,6 +153,14 @@ main{padding:16px 16px 100px;flex:1}
 .badge-danger{background:var(--badge-danger-bg);color:var(--badge-danger-color)}
 .badge-neutral{background:var(--badge-neutral-bg);color:var(--badge-neutral-color)}
 
+.install-banner{position:fixed;bottom:0;left:50%;transform:translateX(-50%);max-width:640px;width:100%;background:var(--surface);border-top:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;z-index:30;box-shadow:0 -4px 16px rgba(0,0,0,.1);animation:slideUp .3s ease;border-radius:12px 12px 0 0}
+.install-banner span{flex:1;font-size:13px;font-weight:600;color:var(--text)}
+.install-banner button{border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all var(--transition)}
+#btn-install{background:var(--gradient);color:#fff}
+#btn-install:hover{box-shadow:0 3px 10px rgba(79,70,229,.35)}
+#btn-install-dismiss{background:none;color:var(--text-secondary);font-size:18px;padding:4px 8px}
+#btn-install-dismiss:hover{color:var(--text)}
+
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#0b1120;color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:200;box-shadow:0 8px 28px rgba(0,0,0,.2);opacity:0;transition:all .35s ease;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;bottom:86px}
 
@@ -254,6 +262,12 @@ main{padding:16px 16px 100px;flex:1}
       <button class="btn btn-primary" id="btn-save-add">Save</button>
     </div>
   </div>
+</div>
+
+<div class="install-banner" id="install-banner" style="display:none">
+  <span>Install Attendance Tracker</span>
+  <button id="btn-install">Install</button>
+  <button id="btn-install-dismiss">&times;</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -709,6 +723,22 @@ function loadRecordForDate(empId,date){
 }
 
 // === PWA: MANIFEST ===
+function generateIcon(size){
+  const c=document.createElement('canvas');
+  c.width=size;c.height=size;
+  const ctx=c.getContext('2d');
+  const r=size*0.12;
+  ctx.fillStyle='#4f46e5';
+  ctx.beginPath();ctx.moveTo(r,0);ctx.lineTo(size-r,0);ctx.quadraticCurveTo(size,0,size,r);
+  ctx.lineTo(size,size-r);ctx.quadraticCurveTo(size,size,size-r,size);
+  ctx.lineTo(r,size);ctx.quadraticCurveTo(0,size,0,size-r);
+  ctx.lineTo(0,r);ctx.quadraticCurveTo(0,0,r,0);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.font='bold '+(size*0.62)+'px sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('\u23F0',size/2,size/2+size*0.05);
+  return c.toDataURL();
+}
 function setupManifest(){
   const manifest={
     name:'Attendance Tracker',
@@ -716,11 +746,11 @@ function setupManifest(){
     description:'Offline employee attendance tracking',
     start_url:location.href.split('?')[0],
     display:'standalone',
-    background_color:'#f1f5f9',
+    background_color:'#f0f2f6',
     theme_color:'#4f46e5',
     icons:[
-      {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='64' fill='%234f46e5'/%3E%3Ctext x='256' y='360' text-anchor='middle' font-size='320' fill='white' font-weight='bold'%3E%26%238997;%3C/text%3E%3C/svg%3E",sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'},
-      {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='24' fill='%234f46e5'/%3E%3Ctext x='96' y='135' text-anchor='middle' font-size='120' fill='white' font-weight='bold'%3E%26%238997;%3C/text%3E%3C/svg%3E",sizes:'192x192',type:'image/svg+xml',purpose:'any maskable'}
+      {src:generateIcon(512),sizes:'512x512',type:'image/png',purpose:'any maskable'},
+      {src:generateIcon(192),sizes:'192x192',type:'image/png',purpose:'any maskable'}
     ]
   };
   const blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
@@ -729,6 +759,29 @@ function setupManifest(){
   link.rel='manifest';
   link.href=url;
   document.head.appendChild(link);
+}
+
+// === PWA: BEFOREINSTALLPROMPT ===
+let deferredPrompt=null;
+function setupInstallPrompt(){
+  if(!('onbeforeinstallprompt' in window))return;
+  window.addEventListener('beforeinstallprompt',function(ev){
+    ev.preventDefault();
+    deferredPrompt=ev;
+    const banner=document.getElementById('install-banner');
+    if(banner)banner.style.display='flex';
+  });
+  document.getElementById('btn-install').addEventListener('click',async function(){
+    const banner=document.getElementById('install-banner');
+    if(!deferredPrompt){banner.style.display='none';return}
+    deferredPrompt.prompt();
+    const result=await deferredPrompt.userChoice;
+    deferredPrompt=null;
+    banner.style.display='none';
+  });
+  document.getElementById('btn-install-dismiss').addEventListener('click',function(){
+    document.getElementById('install-banner').style.display='none';
+  });
 }
 
 // === PWA: SERVICE WORKER ===
@@ -753,6 +806,7 @@ document.addEventListener('DOMContentLoaded',function(){
   initTheme();
   loadData();
   setupManifest();
+  setupInstallPrompt();
   registerSW();
   renderHome();
 
